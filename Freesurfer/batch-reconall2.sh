@@ -17,10 +17,11 @@ Stages are as follows:
 (2) recon-all after making brainmask edits (stages 6-31)
 (3) recon-all after adding control points (stages 12-31)
 (4) recon-all after editing wm.mgz (stages 15-31) (NOTE: picking a lower stage over-writes WM edits!)
-OR pick:
-(5) recon-all for hippocampal subfields.
 
-You should specify the lowest number that applies (so if you edited brainmask and control points, pick 2."
+You should specify the lowest number that applies (so if you edited brainmask and control points, pick 2.
+
+OR pick:
+(5) recon-all for hippocampal subfields."
 
 while getopts ":np:hcs:" opt; do
   case $opt in
@@ -47,6 +48,7 @@ while getopts ":np:hcs:" opt; do
       ;;
   esac
 done
+shift $(expr $OPTIND - 1 )
 
 ##Section 1: Check everything.
 #Is SUBJECTS_DIR specified, and is it where we are?
@@ -81,14 +83,6 @@ if [ ! -f $configfile ] || [ $createonly ]; then
 #This is the command that prefixes recon-all, mostly for task scheduling.
 qcommand="qsub -V"
 
-#Where are the raw images located (parent of the subject folders). $pdir uses the parent directory from batch-reconall2, which is $SUBJECTS_DIR/../ by default.
-rawpath="$pdir"
-
-#This is the search string for what T1 and T2 folders look like. They should only be used for stage one. You can add multiple conditions just like the "foo" and "bar" conditions below. Its safe to have extra - it will always prompt you before using them.
-#eg. this would match SUBJECT/memprage/T1.nii.gz
-T1searcharray=( "memprage/T1.nii.gz" "foo" )
-T2searcharray=( "*T2_SPACE*" "bar" )
-
 #gca-dir
 gcadir="/usr/local/freesurfer/stable5_3/average/"
 #gca. the '-gca' part should be left in - if you do not want to use gca you can simply make the variable blank.
@@ -105,8 +99,18 @@ standard_ops="-3T -mprage -nowmsa"
 #If you need to specify expert options this is the way to do it.
 #expertopts="-xopts-overwrite -expert $pdir/expert.opts"
 
+##The following get used for first run of recon-all - not currently implemented.
+#Where are the raw images located (parent of the subject folders). $pdir uses the parent directory from batch-reconall2, which is $SUBJECTS_DIR/../ by default.
+#rawpath="$pdir"
+
+#This is the search string for what T1 and T2 folders look like. They should only be used for stage one. You can add multiple conditions just like the "foo" and "bar" conditions below. Its safe to have extra - it will always prompt you before using them.
+#eg. this would match SUBJECT/memprage/T1.nii.gz
+#T1searcharray=( "memprage/T1.nii.gz" "foo" )
+#T2searcharray=( "*T2_SPACE*" "bar" )
+
+
 EOF
-	echo "Created config file $configfile"
+	echo "Created config file $configfile . You should review it and then re-run batch-reconall2.sh"
 	exit 0
 fi
 source $configfile
@@ -138,7 +142,7 @@ Choose one of the following options:
 (1) recon-all from raw image data
 (2) recon-all after making brainmask edits (stages 6-31)
 (3) recon-all after adding control points (stages 12-31)
-(4) recon-all after editing wm.mgz (stages 15-31)
+(4) recon-all after editing wm.mgz (stages 15-31) (NOTE: picking a lower stage over-writes WM edits!)
 
 Pick the lowest number that applies (so if you edited brainmask and control points, pick 2.
 
@@ -168,7 +172,7 @@ else
 fi
 
 function recon_wrap() {
-    command="$qcommand -o ${SUBJECTS_DIR}/$4/$2-$USER.output -e ${SUBJECTS_DIR}/$4/$2-$USER.error $1  &"
+    command="$qcommand -o $2.output -e $2.errors $1  &"
     echo "Running recon-all (steps $3)"
     echo $command
 #If you comment out this eval command the script will just tell you what it would do:
@@ -178,7 +182,7 @@ function recon_wrap() {
 }
 
 for s in ${subjects[@]}; do
-    log="${SUBJECTS_DIR}/${s}_last_batch_recon"
+    log="${SUBJECTS_DIR}/${s}/${USER}_last_batch_recon"
     echo -e "\e[00;35mStarting recon-all for subject number $s. Output stored in $log\e[00m"
     if [[ $T2choice = "yes" ]] && [[ $choice -gt 1 ]]; then
 	if [[ -e ${SUBJECTS_DIR}/$s/mri/T2.mgz ]]; then
@@ -207,4 +211,5 @@ for s in ${subjects[@]}; do
 done
 
 echo -e "\e[01;31m
-To list your running jobs, you can type 'qstat' at the terminal \e[00m"
+To list your running jobs, you can type 'qstat' at the terminal 
+Output/error messages are written within each subjects freesurfer folder\e[00m"
