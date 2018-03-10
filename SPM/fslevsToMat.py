@@ -2,7 +2,6 @@
 #This script takes any number of three column fsl event files and outputs a .m matlab script suitable to generate timing parameters.
 import sys
 import pandas
-#from decimal import Decimal
 print 'Number of arguments:', len(sys.argv[1:]), 'arguments.'
 print 'Argument List:', str(sys.argv[1:])
 

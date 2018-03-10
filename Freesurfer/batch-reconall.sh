@@ -81,7 +81,7 @@ if [ ! -f $configfile ] || [ $createonly ]; then
 #This is the Config file for batch reconall. You should review it at the onset of each project.
 
 #This is the command that prefixes recon-all, mostly for task scheduling.
-qcommand="qsub -V"
+qcommand="qsub -q vmpfc.q -V"
 
 #gca-dir
 gcadir="/usr/local/freesurfer/stable5_3/average/"

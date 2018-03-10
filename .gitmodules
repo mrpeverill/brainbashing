@@ -1,0 +1,3 @@
+[submodule "visualisation/quadfigures"]
+	path = visualisation/quadfigures
+	url = https://github.com/mrpeverill/quadfigures.git
