@@ -1,0 +1,13 @@
+#!/bin/bash
+#This looks for */Preprocessing_Report.pdf and renames it as */Preprocessing_Report_*.pdf
+#9/23/2013 by Matthew Peverill - mrpeverill@gmail.com
+pwd=`pwd`
+date=`date`
+reports=( $(ls */Preprocessing_Report.pdf) )
+#echo $reports
+for report in ${reports[*]}
+do
+	snum=`echo $report | grep -o '^[0-9]\+'`
+	mv ${snum}/Preprocessing_Report.pdf ${snum}/Preprocessing_Report_${snum}.pdf
+	mv ${snum}WM/Preprocessing_Report.pdf ${snum}WM/Preprocessing_Report_${snum}WM.pdf
+done 

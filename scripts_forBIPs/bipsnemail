@@ -1,0 +1,33 @@
+#!/bin/bash
+#This is a script which will run bips -r on a given json file and:
+# * Save the results to a log file
+# * email you a notification that it finished along with the last 100 lines of output (so you can tell if it worked)
+# 
+# The syntax to use to run this command is:
+# bipsnemail (json file)
+#
+# I recommend also using mosbatch or another queue control program such as qsub to run the command so that it will run on the least loaded server. Then the full syntax is:
+# mosbatch -P 14 bipsnemail (json file)
+
+########################################################################################################
+sendemail=$chemailaddress
+logfolder="/neuro/users/$USER/bips-reports/"
+########################################################################################################
+
+EXPECTED_ARGS=1
+E_BADARGS=65
+
+if [ $# -ne $EXPECTED_ARGS ]
+then
+  echo "Usage: `basename $0` {arg}"
+  exit $E_BADARGS
+fi
+username=`whoami`
+base=`basename $1`
+filename=`date | tr " " "_"`"-$HOSTNAME-$base.report"
+#echo $username@${HOSTNAME}.tch.harvard.edu
+#echo $filename
+bips -r $1 &> "${logfolder}${filename}"
+(echo "Output saved to ${logfolder}/${filename}
+
+" ; tail -n 100 "${logfolder}${filename}") | mail -s "BIPS run '$1' on $HOSTNAME complete" $sendemail

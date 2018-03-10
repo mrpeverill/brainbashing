@@ -1,0 +1,32 @@
+#!/bin/bash
+#This script was designed to be run from the sync dir of bips. It grabs a number of QA reports (you specify how many) and adds them to a zip file.
+pwd=`pwd`
+date=`date`
+
+#Get argument
+if [ $# -ne 1 ]; then
+    echo "Enter how many QA reports you want to sample:"
+    read num
+else
+    num=$@
+fi
+
+echo "Enter a label for the collection"
+read label
+
+reports=( $(ls */Preprocessing_Report*.pdf) )
+if [ ${#reports[@]} -gt 0 ]; then
+    echo "grabbing $num reports out of ${#reports[@]} in ${pwd}/*/Preprocessing_Report*.pdf on $date"
+    targets=''
+    for index in `shuf --input-range=0-$(( ${#reports[*]} - 1 )) | head -${num}`
+    do
+	targets="$targets ${reports[$index]}"
+    done
+    #echo $targets
+    zip "${label}_QA_${date}.zip" $targets 
+else
+    echo "No reports found in ${pwd}/*/Preprocessing_Report.pdf . Are you running in the right directory?"
+fi
+
+#echo "$num reports"
+#echo $pwd

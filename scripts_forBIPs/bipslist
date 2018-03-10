@@ -1,0 +1,32 @@
+#!/bin/bash
+#Outputs a list of subject folders in the current working directory in bips compatible syntax.
+#if you specify -g it will output without double quotes, suitable for the bips gui. Otherwise it outputs the list with double quotes so you can put it in the json file.
+g=0
+while getopts :g opt; do
+    case $opt in
+	g)
+	    g=1
+	    ;;
+	\?)
+	    echo "Invalid option: $OPTARG" >&2
+	    exit 1
+	    ;;
+	esac
+done
+
+filelist=()
+shopt -s nullglob # This prevents weird results if some of the parameters don't match
+for i in 0* 1* 2* 3* 4*; do
+    if [ $g -eq 1 ]; then
+	s=$i
+    else
+	s="\"$i\""
+    fi
+    filelist+=($s)
+done
+#echo $output
+
+separator=", " # e.g. constructing regex, pray it does not contain %s
+regex="$( printf "${separator}%s" "${filelist[@]}" )"
+regex="${regex:${#separator}}" # remove leading separator
+echo "${regex}"
