@@ -3,4 +3,5 @@ This repository is for all my miscellaneous MRI scripts. Mostly these were produ
 These are almost all quality of life scripts to make it easier to work with various other programs or translate things between them. They are sorted according to the program they are designed to work with.
 
 #License
+
 MIT + file License.txt
