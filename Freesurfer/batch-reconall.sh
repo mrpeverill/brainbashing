@@ -1,6 +1,12 @@
 #Freesurfer's recon-all command is powerful, but needs a lot of knowledge to run correctly. Often, it needs to be run by many people who don't know a lot about the command line or Freesurfer. This script sets up project-specific config files that remain static throughout a project's lifetime, provides an easy front-end for end-users to run recon-all, and allows recon-all to be run in a batch format with support for grid-processing.
 #The original batch-reconall had each project's setup hard-coded in the script. This created risk of settings being thoughtlessly (mis)applied to new projects, so the new version relies on the existence of configuration files in each project.
 #v2 Matt Peverill 9-12-2016 mrpeverill@gmail.com
+#v3 Matt Peverill 8-7-2018:
+# * Added better logging
+# * Added -show-edits flag
+# * Changed options to better reflect FS workflow
+# * Added qcache option.
+# * Wishlist: separate hemis.
 
 USAGE="Usage: batch-reconall2.sh [OPTIONS]... [SUBJECTS]...
 Parses configuration files for recon-all in a parent directory, then runs recon-all with the specified options. By default, commands will be output to some sort of task scheduler (such as sge or MOSIX).
@@ -14,15 +20,16 @@ Mandatory arguments to long options are mandatory for short options too.
 
 Stages are as follows:
 (1) recon-all from raw image data
-(2) recon-all after making brainmask edits (stages 6-31)
-(3) recon-all after adding control points (stages 12-31)
-(4) recon-all after editing wm.mgz (stages 15-31) (NOTE: picking a lower stage over-writes WM edits!)
+(2) regen wm.mgz. Do this after deleting things reg. as white matter from brainmask (autorecon2, stages 6-31) - THIS WILL DELETE ALL WM EDITS.
+(3) recon-all after adding control points (autorecon2-cp, stages 12-31)
+(4) recon-all after editing wm.mgz (autorecon2-wmstages, 15-31)
+(5) recon-all after editing brainmask for pial changes only (autorecon2-pial, 21-31)
 
 You should specify the lowest number that applies (so if you edited brainmask and control points, pick 2.
 
 OR pick:
-(5) recon-all for hippocampal subfields."
-
+(6) recon-all for hippocampal subfields.
+(7) Run qcache (resample on to fsaverage and smooth for later analysis)"
 while getopts ":np:hcs:" opt; do
   case $opt in
     n)
@@ -83,6 +90,8 @@ if [ ! -f $configfile ] || [ $createonly ]; then
 #This is the command that prefixes recon-all, mostly for task scheduling.
 qcommand="qsub -q vmpfc.q -V"
 
+#Uncomment if you want to skip GCA
+#gcaoff=TRUE
 #gca-dir
 gcadir="/usr/local/freesurfer/stable5_3/average/"
 #gca. the '-gca' part should be left in - if you do not want to use gca you can simply make the variable blank.
@@ -114,23 +123,32 @@ EOF
 	exit 0
 fi
 source $configfile
+echo "gcaoff is $gcaoff"
 
-#If GCA specified, does it exist?
-if [ -f $gcadir/$gca ]; then
-    gca_c="-gca $gca"
+if [ -z "$gcaoff" ]; then
+    echo "execute gca on"
+    #If GCA specified, does it exist?
+    if [ -f $gcadir/$gca ]; then
+	gca_c="-gca $gca"
+    else
+	echo "GCA is specified as $gcadir/$gca, but that file does not exist" >&2
+	exit 1
+    fi
+
+    if [ -f $gcadir/$gcaskull ]; then
+	gcaskull_c="-gca-skull $gcaskull"
+    else
+	echo "GCA-skull is specified as $gcadir/$gcaskull, but that file does not exist" >&2
+	exit 1
+    fi
+    gcadir_c="-gca-dir $gcadir"
+    gcastring="$gcadir_c $gca_c $gcaskull_c"
 else
-    echo "GCA is specified as $gcadir/$gca, but that file does not exist" >&2
-    exit 1
+    echo "execute gcaoff"
+    gcadir_c=""
+    gcastring=""
 fi
 
-if [ -f $gcadir/$gcaskull ]; then
-    gcaskull_c="-gca-skull $gca"
-else
-    echo "GCA-skull is specified as $gcadir/$gcaskull, but that file does not exist" >&2
-    exit 1
-fi
-gcadir_c="-gca-dir $gcadir"
-gcastring="$gcadir_c $gca_c $gcaskull_c"
 
 #What are we doing?
 if [ ! -e $choice ]; then
@@ -140,18 +158,20 @@ else
 Choose one of the following options:
 
 (1) recon-all from raw image data
-(2) recon-all after making brainmask edits (stages 6-31)
-(3) recon-all after adding control points (stages 12-31)
-(4) recon-all after editing wm.mgz (stages 15-31) (NOTE: picking a lower stage over-writes WM edits!)
+(2) regen wm.mgz. Do this after deleting things reg. as white matter from brainmask (autorecon2, stages 6-31) - THIS WILL DELETE ALL WM EDITS.
+(3) recon-all after adding control points (autorecon2-cp, stages 12-31)
+(4) recon-all after editing wm.mgz (autorecon2-wmstages, 15-31)
+(5) recon-all after editing brainmask for pial changes only (autorecon2-pial, 21-31)
 
-Pick the lowest number that applies (so if you edited brainmask and control points, pick 2.
+You should specify the lowest number that applies (so if you edited brainmask and control points, pick 2.
 
 OR pick:
-(5) recon-all for hippocampal subfields.'
+(6) recon-all for hippocampal subfields.
+(7) Run qcache (resample on to fsaverage and smooth for later analysis)"'
     read choice
 fi
 
-while ! [[ $choice =~ ^[1-5]+$ ]] || [[ $choice -gt 5 ]] || [[ $choice -lt 1 ]]; do
+while ! [[ $choice =~ ^[1-7]+$ ]] || [[ $choice -gt 7 ]] || [[ $choice -lt 1 ]]; do
 	read -p "Stage selected is Not a valid option.  Enter an integer from 1 to 5: " choice
 done
 
@@ -177,7 +197,8 @@ function recon_wrap() {
     echo $command
 #If you comment out this eval command the script will just tell you what it would do:
     if [ ! $dry ]; then
-	eval $command
+	enddate=`date`
+	eval $command | tee -a ${SUBJECTS_DIR}/$s/scripts/fsedit.log && echo "${enddate}: batch-reconall ran $command" >> ${SUBJECTS_DIR}/$s/scripts/fsedit.log 
     fi
 }
 
@@ -196,16 +217,22 @@ for s in ${subjects[@]}; do
 
     if [[ $choice -eq 2 ]]; then 
 	stages="6-31"
-	command="/usr/local/freesurfer/stable5_3/bin/recon-all -s $s $T2 -autorecon2 -autorecon3 $gcastring $standard_ops $expertopts"
+	command="/usr/local/freesurfer/stable5_3/bin/recon-all -s $s $T2 -autorecon2 -autorecon3 -show-edits $gcastring $standard_ops $expertopts"
     elif [[ $choice -eq 3 ]]; then 
 	stages="12-31"
-	command="/usr/local/freesurfer/stable5_3/bin/recon-all -s $s $T2 -autorecon2-cp -autorecon3 $gcastring $standard_ops $expertopts"
+	command="/usr/local/freesurfer/stable5_3/bin/recon-all -s $s $T2 -autorecon2-cp -autorecon3 -show-edits $gcastring $standard_ops $expertopts"
     elif [[ $choice -eq 4 ]]; then 
 	stages="15-31"
-	command="/usr/local/freesurfer/stable5_3/bin/recon-all -s $s $T2 -autorecon2-wm -autorecon3 $gcastring $standard_ops $expertopts"
+	command="/usr/local/freesurfer/stable5_3/bin/recon-all -s $s $T2 -autorecon2-wm -autorecon3 -show-edits $gcastring $standard_ops $expertopts"
     elif [[ $choice -eq 5 ]]; then
+	stages="21-31"
+	command="/usr/local/freesurfer/stable5_3/bin/recon-all -s $s $T2 -autorecon2-pial -autorecon3 -show-edits $gcastring $standard_ops $expertopts"
+    elif [[ $choice -eq 6 ]]; then
     	stages="hippocampal subfields"
 	command="/usr/local/freesurfer/stable5_3/bin/recon-all -s $s -hippo-subfields"
+    elif [[ $choice -eq 7 ]]; then
+	stages="qcache"
+	command="/usr/local/freesurfer/stable5_3/bin/recon-all -s $s -qcache -measure thickness -fwhm 20"
     fi
     recon_wrap "$command" "$log" "$stages" "$s"
 done
